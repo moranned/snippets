@@ -16,10 +16,21 @@ def put(name, snippet):
     """
     #logging.error("FIXME: Unimplemented - put({!r}, {!r})".format(name, snippet))
     logging.info("Storing snippet {!r}: {!r}".format(name, snippet))
-    cursor = connection.cursor()
-    command = "insert into snippets values (%s, %s)"
-    cursor.execute(command,(name,snippet))
-    connection.commit()
+    #cursor = connection.cursor()
+    #try:
+    #  command = "insert into snippets values (%s, %s)"
+    #  cursor.execute(command, (name, snippet))
+    #except psycopg2.IntegrityError as e:
+    #  connection.rollback()
+    #  command = "update snippets set message=%s where keyword=%s"
+    #  cursor.execute(command, (snippet, name))
+    #connection.commit()
+    with connection, connection.cursor() as cursor:
+      try:
+        cursor.execute("insert into snippets values (%s, %s)",(name,snippet))
+      except psycopg2.IntegrityError as e:
+        connection.rollback()
+        cursor.execute("update snippets set message=%s where keyword=%s",(snippet,name))
     logging.debug("Snippet stored successfully.")
     return name, snippet
 
@@ -28,14 +39,14 @@ def get(name):
     If there is no such snippet gracefully return a message
     Returns the snippet.
     """
-    #logging.error("FIXME: Unimplemented - get({!r})".format(name))
-    cursor = connection.cursor()
-    command = "select message from snippets where keyword = '%s'" %name
-    cursor.execute(command)
-    connection.commit()
-    result = cursor.fetchone()
+    with connection, connection.cursor() as cursor:
+      cursor.execute("select message from snippets where keyword=%s", (name,))
+      result = cursor.fetchone()
     logging.debug("Snippet retrieved successfully")
-    return result  
+    if not result:
+      return 'There is no snippet with the name: %s' %name
+    else:
+      return result[0]
 
 def main():
   logging.info("Constructing Parser")
@@ -50,7 +61,6 @@ def main():
   get_parser.add_argument("name", help="The name of the snippet")
   arguments = parser.parse_args(sys.argv[1:])
   arguments = vars(arguments)
-  print arguments
   command = arguments.pop("command")
   
   if command == "put":

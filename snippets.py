@@ -48,6 +48,19 @@ def get(name):
     else:
       return result[0]
 
+def show_catalog():
+  with connection, connection.cursor() as cursor:
+    cursor.execute("select keyword from snippets")
+    result = cursor.fetchall()
+    return result
+
+def search_catalog(name):
+  name = '%test%'
+  with connection, connection.cursor() as cursor:
+    cursor.execute("select keyword from snippets where keyword like %s",(name,))
+    result = cursor.fetchall()
+    return result
+    
 def main():
   logging.info("Constructing Parser")
   parser = argparse.ArgumentParser(description="Store and retrieve a snippet of text")
@@ -59,6 +72,9 @@ def main():
   put_parser.add_argument("snippet", help="The snippet text")
   get_parser = subparsers.add_parser("get", help="Retrieve a snippet")
   get_parser.add_argument("name", help="The name of the snippet")
+  catalog_parser = subparsers.add_parser("catalog", help="Show all keywords")
+  search_parser = subparsers.add_parser("search", help="Search for keywords")
+  search_parser.add_argument("name", help="Keyword to search for")
   arguments = parser.parse_args(sys.argv[1:])
   arguments = vars(arguments)
   command = arguments.pop("command")
@@ -70,6 +86,14 @@ def main():
   if command == "get":
     snippet = get(**arguments)
     print ("Retrieved snippet: {!r}".format(snippet))
+  
+  if command == "catalog":
+    for keyword in show_catalog():
+      print keyword[0]
+  
+  if command == "search":
+    for keyword in search_catalog(**arguments):
+      print keyword[0]
   
 if __name__ == '__main__':
   main()

@@ -9,30 +9,19 @@ logging.debug("Connecting to PostgreSQL")
 connection = psycopg2.connect("dbname='snippets' user='action' host='localhost'")
 logging.debug("Database connection established.")
 
-def put(name, snippet):
+def put(name, snippet, hidden=False):
     """
     Store a snippet with an associated name.
     Returns the name and the snippet
     """
-    #logging.error("FIXME: Unimplemented - put({!r}, {!r})".format(name, snippet))
-    logging.info("Storing snippet {!r}: {!r}".format(name, snippet))
-    #cursor = connection.cursor()
-    #try:
-    #  command = "insert into snippets values (%s, %s)"
-    #  cursor.execute(command, (name, snippet))
-    #except psycopg2.IntegrityError as e:
-    #  connection.rollback()
-    #  command = "update snippets set message=%s where keyword=%s"
-    #  cursor.execute(command, (snippet, name))
-    #connection.commit()
     with connection, connection.cursor() as cursor:
       try:
-        cursor.execute("insert into snippets values (%s, %s)",(name,snippet))
+        cursor.execute("insert into snippets values (%s, %s, %s)",(name, snippet, hidden))
       except psycopg2.IntegrityError as e:
         connection.rollback()
-        cursor.execute("update snippets set message=%s where keyword=%s",(snippet,name))
+        cursor.execute("update snippets set message=%s where keyword=%s and hidden=%s",(snippet, name, hidden))
     logging.debug("Snippet stored successfully.")
-    return name, snippet
+    return name, snippet, hidden
 
 def get(name):
     """Retrieve the snippet with a given name.
@@ -48,16 +37,16 @@ def get(name):
     else:
       return result[0]
 
-def show_catalog():
+def show_catalog(hidden=False):
   with connection, connection.cursor() as cursor:
-    cursor.execute("select keyword from snippets")
+    cursor.execute("select keyword from snippets where hidden=%s",(hidden,))
     result = cursor.fetchall()
     return result
 
-def search_catalog(name):
-  name = '%test%'
+def search_catalog(name,flag):
+  name = '%' + name + '%'
   with connection, connection.cursor() as cursor:
-    cursor.execute("select keyword from snippets where keyword like %s",(name,))
+    cursor.execute("select keyword from snippets where keyword like %s and hidden=False",(name,))
     result = cursor.fetchall()
     return result
     
@@ -75,23 +64,28 @@ def main():
   catalog_parser = subparsers.add_parser("catalog", help="Show all keywords")
   search_parser = subparsers.add_parser("search", help="Search for keywords")
   search_parser.add_argument("name", help="Keyword to search for")
+  parser.add_argument("--unhide", help="Show hidden keywords", action="store_true")
+  parser.add_argument("--hide", help="Store snippets as hidden", action="store_true")
   arguments = parser.parse_args(sys.argv[1:])
   arguments = vars(arguments)
   command = arguments.pop("command")
+  unhide = arguments.pop("unhide")
+  hide = arguments.pop("hide")
   
   if command == "put":
-    name,snippet = put(**arguments)
-    print ("Stored {!r} as {!r}".format(snippet,name))
+      name,snippet,hidden = put(arguments['name'],arguments['snippet'],hide)
+      print ("Stored {!r} as {!r} with hidden equals {!r}".format(snippet, name, hidden))
   
   if command == "get":
     snippet = get(**arguments)
     print ("Retrieved snippet: {!r}".format(snippet))
   
   if command == "catalog":
-    for keyword in show_catalog():
+    for keyword in show_catalog(unhide):
       print keyword[0]
-  
+
   if command == "search":
+    search_catalog(**arguments)
     for keyword in search_catalog(**arguments):
       print keyword[0]
   
